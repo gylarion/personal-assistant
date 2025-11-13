@@ -1,6 +1,3 @@
-# personal-assistant
-Final project for Python group17 – Personal Assistant
-
 # Персональний помічник (Personal Assistant)
 
 **Персональний помічник** — це консольна програма, створена для зручного зберігання та обробки контактної інформації й нотаток.  
