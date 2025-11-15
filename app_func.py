@@ -1,5 +1,5 @@
 """
-Модуль архітектора (Людина 1) + логіка Людини 2 (додавання контактів, дні народження).
+Модуль архітектора (Людина 1) + логіка Людини 2 (додавання контактів, дні народження) + Людина 3 (пошук і виведення).
 
 Цей файл містить базові класи Contact та AddressBook, а також функції збереження, завантаження,
 додавання контактів і виведення найближчих днів народження.
@@ -207,3 +207,73 @@ def get_upcoming_birthdays(*args):
         result.append(f"{name}: {date}")
 
     return '\n'.join(result)
+
+# --- Людина 3 ---
+def format_contact(record) -> str:
+    """
+    Формує текстове представлення одного контакту:
+    ім’я, телефони, день народження, нотатки (якщо є).
+    """
+    lines = []
+    name_str = getattr(record.name, "value", str(record.name))
+    lines.append(f"Name: {name_str}")
+    phones = getattr(record, "phones", [])
+    if phones:
+        phone_values = [getattr(p, "value", str(p)) for p in phones]
+        lines.append(f"Phones: {', '.join(phone_values)}")
+    else:
+        lines.append("Phones: -")
+    birthday = getattr(record, "birthday", None)
+    if birthday:
+        lines.append(f"Birthday: {birthday}")
+    notes = getattr(record, "notes", None)
+    if notes:
+        lines.append("Notes:")
+        for note in notes:
+            text = getattr(note, "text", str(note))
+            tags = getattr(note, "tags", [])
+            if tags:
+                tag_str = ", ".join(str(t) for t in tags)
+                lines.append(f"  - {text}  (tags: {tag_str})")
+            else:
+                lines.append(f"  - {text}")
+    return "\n".join(lines)
+
+
+def Contactss(args, book) -> str:
+    """
+    Пошук контактів за ім'ям або номером телефону.
+    Повертає відформатований список або повідомлення, якщо нічого не знайдено.
+    """
+    if not args:
+        return "Введіть, будь ласка, текст для пошуку (ім'я або частину номера)."
+    query = " ".join(args).strip().lower()
+    if not query:
+        return "Порожній запит. Введіть ім'я або частину номера."
+    matches = []
+    for record in book.contacts.values():
+        name_str = getattr(record.name, "value", str(record.name))
+        if query in name_str.lower():
+            matches.append(record)
+            continue
+        phones = getattr(record, "phones", [])
+        for p in phones:
+            phone_value = getattr(p, "value", str(p))
+            if query in phone_value:
+                matches.append(record)
+                break
+    if not matches:
+        return f"Нічого не знайдено за запитом: '{query}'."
+    chunks = [format_contact(rec) for rec in matches]
+    header = f"Знайдено контактів: {len(matches)}"
+    return header + "\n\n" + "\n\n".join(chunks)
+
+
+def show_all_contacts(book) -> str:
+    """
+    Виводить усі збережені контакти у форматованому вигляді або повідомлення, якщо книга порожня.
+    """
+    if not book.contacts:
+        return "Книга контактів порожня."
+    lines = [format_contact(record) for record in book.contacts.values()]
+    return "\n\n".join(lines)
