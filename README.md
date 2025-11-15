@@ -78,3 +78,30 @@ LICENSE
 ## 📜 Ліцензія
 
 Проєкт розповсюджується під [MIT License](LICENSE).
+
+# Приклад інтеграції в main.py
+
+    ...
+    elif command == "add-note":
+        # args вже містять все, крім самої команди
+        print(add_note(args, book)) 
+        
+    elif command == "edit-note":
+        print(edit_note(args, book))
+        
+    elif command == "delete-note":
+        print(delete_note(args, book))
+        
+    elif command == "search-notes":
+        print(search_notes(args, book))
+
+    elif command == "notes-by-tag":
+        print(sort_notes_by_tag(args, book)) # args буде порожнім
+
+    # Команди вашого колеги
+    elif command == "find":
+        print(Contactss(args, book))
+
+    elif command == "contacts":
+        print(show_all_contacts(book))
+    ...
