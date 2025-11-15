@@ -1,15 +1,15 @@
+import pickle
+import os
+from datetime import datetime, timedelta
+
 """
 Модуль архітектора (Людина 1) + логіка Людини 2 (додавання контактів, дні народження) + Людина 3 (пошук і виведення).
 
 Цей файл містить базові класи Contact та AddressBook, а також функції збереження, завантаження,
 додавання контактів і виведення найближчих днів народження.
 """
-import pickle
-import os
-from datetime import datetime, timedelta
 
-
-# --- Людина 1 ---
+# --- Людина 1: Архітектор (Core / OOP / Storage) ---
 class Contact:
     """
     Клас, що представляє контакт.
@@ -133,7 +133,7 @@ def load_data(filename: str = "data/addressbook.pkl") -> AddressBook:
     return AddressBook()
 
 
-# --- Людина 2 ---
+# --- Людина 2: Логіка Контактів (Create + Birthday) ---
 def input_error(func):
     """
     Декоратор для обробки помилок користувацького вводу при виклику функцій.
@@ -208,7 +208,7 @@ def get_upcoming_birthdays(*args):
 
     return '\n'.join(result)
 
-# --- Людина 3 ---
+# --- Людина 3: Логіка Контактів (Read: Search / Show All) ---
 def format_contact(record) -> str:
     """
     Формує текстове представлення одного контакту:
@@ -277,3 +277,94 @@ def show_all_contacts(book) -> str:
         return "Книга контактів порожня."
     lines = [format_contact(record) for record in book.contacts.values()]
     return "\n\n".join(lines)
+# --- Людина 4: Логіка Контактів (Update / Delete) ---
+
+@input_error
+def edit_contact(*args):
+    """
+    Редагує існуючий контакт у книзі контактів AddressBook.
+    Формат виклику:
+        edit_contact(старе_ім'я, нове_ім'я, новий_телефон, новий_email, нова_адреса, book)
+    Обов’язковим є лише перший аргумент — старе ім’я (за яким буде знайдено контакт).
+    Всі наступні аргументи — опціональні. Щоб пропустити значення, передайте `None`, "-", або нічого.
+
+    Наприклад:
+        edit_contact("Іван", "Іванов", None, "ivan@example.com", None, book) — змінює ім’я та email
+        edit_contact("Іван", None, "0987654321", None, None, book) — змінює лише телефон
+    ⚠️ Нотатки не редагуються цією функцією (це обробляє Людина 5).
+    Після змін AddressBook зберігається у файл.
+    Args:
+        *args: список позиційних аргументів, де останній — book (AddressBook)
+    Returns:
+        str: Повідомлення про успіх або помилку
+    """
+    *contact_args, book = args
+
+    if len(contact_args) < 1:
+        return ("❌ Помилка: Вкажіть хоча б ім’я для редагування.\n"
+                "💡 Формат: edit [старе_ім’я] [нове_ім’я] [телефон] [email] [адреса]")
+
+    old_name = contact_args[0]
+    new_name = contact_args[1] if len(contact_args) > 1 and contact_args[1] not in [None, "-", "null"] else None
+    new_phone = contact_args[2] if len(contact_args) > 2 and contact_args[2] not in [None, "-", "null"] else None
+    new_email = contact_args[3] if len(contact_args) > 3 and contact_args[3] not in [None, "-", "null"] else None
+    new_address = contact_args[4] if len(contact_args) > 4 and contact_args[4] not in [None, "-", "null"] else None
+
+    contact = book.find(old_name)
+    if not contact:
+        raise KeyError("Контакт не знайдено.")
+
+    # Оновлення імені
+    if new_name:
+        contact.name = new_name
+        if old_name != new_name:
+            book.delete_contact(old_name)
+            book.add_contact(contact)
+
+    # Оновлення телефону
+    if new_phone:
+        contact.add_phone(new_phone)
+
+    # Оновлення email
+    if new_email:
+        if hasattr(contact, "set_email"):
+            contact.set_email(new_email)
+        else:
+            raise AttributeError("Цей контакт не підтримує email.")
+
+    # Оновлення адреси
+    if new_address:
+        if hasattr(contact, "set_address"):
+            contact.set_address(new_address)
+        else:
+            raise AttributeError("Цей контакт не підтримує адресу.")
+
+    save_data(book)
+    return f"✅ Контакт '{old_name}' оновлено."
+
+
+@input_error
+def delete_contact(*args):
+    """
+    Видаляє контакт з AddressBook за ім’ям.
+    Формат виклику:
+        delete_contact("Іван", book)
+    Args:
+        *args: перший аргумент — ім’я, останній — AddressBook
+    Returns:
+        str: Повідомлення про успішне видалення або помилку, якщо контакт не знайдено
+    Порада:
+        Якщо ім’я не вказано, або контакт не існує — буде повідомлення про помилку.
+    """
+    *name_args, book = args
+
+    if not name_args:
+        raise ValueError("Ім’я контакту не вказано.")
+
+    name = name_args[0]
+    if not book.find(name):
+        raise KeyError("Контакт не знайдено.")
+
+    book.delete_contact(name)
+    save_data(book)
+    return f"✅ Контакт '{name}' видалено."
