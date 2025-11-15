@@ -14,21 +14,30 @@ import os
 class Contact:
     """
     Клас, що представляє контакт.
-
     Атрибути:
         name (str): Ім'я контакту.
         phone (str): Номер телефону.
-        notes (list): Список нотаток (об'єкти Note)
+        notes (list): Список нотаток (об'єкти Note).
+        email (str): Email адреса.
+        address (str): Поштова адреса.
+        birthday (datetime.date): Дата народження.
     """
-    def __init__(self, name: str, phone: str):
+
+    def __init__(self, name: str):
         self.name = name
-        self.phone = phone
-        self.notes = []  # ← вимога завдання
+        self.phone = None
+        self.notes = []
+        self.email = None
+        self.address = None
         self.birthday = None
 
     def add_phone(self, phone: str):
         """
         Встановлює новий номер телефону для контакту після перевірки.
+        Args:
+            phone (str): Номер телефону (10 цифр)
+        Raises:
+            ValueError: Якщо телефон не складається з 10 цифр.
         """
         if not phone.isdigit() or len(phone) != 10:
             raise ValueError("Телефон повинен містити рівно 10 цифр.")
@@ -36,12 +45,22 @@ class Contact:
 
     def add_birthday(self, birthday_str: str):
         """
-        Встановлює дату народження для контакту після перевірки формату.
+        Встановлює дату народження після перевірки формату ДД.ММ.РРРР
+        Args:
+            birthday_str (str): Дата у форматі "ДД.ММ.РРРР"
+        Raises:
+            ValueError: Якщо формат дати невірний.
         """
         try:
             self.birthday = datetime.strptime(birthday_str, "%d.%m.%Y").date()
         except ValueError:
             raise ValueError("Невірний формат дати. Використовуйте ДД.ММ.РРРР")
+
+    def set_email(self, email: str):
+        self.email = email
+
+    def set_address(self, address: str):
+        self.address = address
 
     def __str__(self):
         return f"Contact(name={self.name}, phone={self.phone}, notes={len(self.notes)})"
@@ -171,7 +190,8 @@ def add_contact(*args):
 
     if record is None:
         try:
-            record = Contact(name, phone)
+            record = Contact(name)
+            record.add_phone(phone)
             message = "Контакт додано."
         except ValueError as e:
             return f"❌ Помилка створення контакту: {str(e)}"
@@ -179,7 +199,7 @@ def add_contact(*args):
         try:
             record.add_phone(phone)
         except ValueError as e:
-            return f"❌ {str(e)}\n💡 Телефон повинен містити 10 цифр (наприклад: 0671234567)"
+            return f"❌ {str(e)}"
 
     book.add_contact(record)
     save_data(book)
@@ -218,12 +238,11 @@ def format_contact(record) -> str:
     lines = []
     name_str = getattr(record.name, "value", str(record.name))
     lines.append(f"Name: {name_str}")
-    phones = getattr(record, "phones", [])
-    if phones:
-        phone_values = [getattr(p, "value", str(p)) for p in phones]
-        lines.append(f"Phones: {', '.join(phone_values)}")
+    phone = getattr(record, "phone", None)
+    if phone:
+        lines.append(f"Phone: {phone}")
     else:
-        lines.append("Phones: -")
+        lines.append("Phone: -")
     birthday = getattr(record, "birthday", None)
     if birthday:
         lines.append(f"Birthday: {birthday}")
