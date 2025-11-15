@@ -1,6 +1,7 @@
+from collections import UserDict
+from datetime import datetime, timedelta
 import pickle
 import os
-from datetime import datetime, timedelta
 
 """
 Модуль архітектора (Людина 1) + логіка Людини 2 (додавання контактів, дні народження) + Людина 3 (пошук і виведення).
@@ -46,7 +47,7 @@ class Contact:
         return f"Contact(name={self.name}, phone={self.phone}, notes={len(self.notes)})"
 
 
-class AddressBook:
+class AddressBook(UserDict):
     """
     Клас для зберігання об'єктів Contact.
 
@@ -54,26 +55,26 @@ class AddressBook:
         contacts (dict): словник у форматі name → Contact
     """
     def __init__(self):
-        self.contacts = {}
+        super().__init__()
 
     def add_contact(self, contact: Contact):
         """
         Додає або оновлює контакт у словнику за ім’ям.
         """
-        self.contacts[contact.name] = contact
+        self.data[contact.name] = contact
 
     def get_contact(self, name: str):
         """
         Повертає контакт за ім’ям або None, якщо такого немає.
         """
-        return self.contacts.get(name)
+        return self.data.get(name)
 
     def delete_contact(self, name: str):
         """
         Видаляє контакт з книги за ім’ям.
         """
-        if name in self.contacts:
-            del self.contacts[name]
+        if name in self.data:
+            del self.data[name]
 
     def find(self, name: str):
         """
@@ -90,7 +91,7 @@ class AddressBook:
         next_week = today + timedelta(days=7)
         result = []
 
-        for contact in self.contacts.values():
+        for contact in self.data.values():
             if contact.birthday:
                 bday = contact.birthday.replace(year=today.year)
                 if bday < today:
@@ -111,7 +112,7 @@ class AddressBook:
         return result
 
     def __str__(self):
-        return "\n".join(str(contact) for contact in self.contacts.values())
+        return "\n".join(str(contact) for contact in self.data.values())
 
 
 def save_data(address_book: AddressBook, filename: str = "data/addressbook.pkl"):
@@ -251,7 +252,7 @@ def Contactss(args, book) -> str:
     if not query:
         return "Порожній запит. Введіть ім'я або частину номера."
     matches = []
-    for record in book.contacts.values():
+    for record in book.data.values():
         name_str = getattr(record.name, "value", str(record.name))
         if query in name_str.lower():
             matches.append(record)
@@ -273,9 +274,9 @@ def show_all_contacts(book) -> str:
     """
     Виводить усі збережені контакти у форматованому вигляді або повідомлення, якщо книга порожня.
     """
-    if not book.contacts:
+    if not book.data:
         return "Книга контактів порожня."
-    lines = [format_contact(record) for record in book.contacts.values()]
+    lines = [format_contact(record) for record in book.data.values()]
     return "\n\n".join(lines)
 # --- Людина 4: Логіка Контактів (Update / Delete) ---
 
@@ -368,3 +369,193 @@ def delete_contact(*args):
     book.delete_contact(name)
     save_data(book)
     return f"✅ Контакт '{name}' видалено."
+
+# ============================
+# Людина 5: Логіка Нотаток (Full CRUD + Tags)
+# ============================
+
+class Note:
+    def __init__(self, text: str, tags=None):
+        self.text = text
+        self.tags = tags or []
+
+    def __str__(self):
+        if self.tags:
+            return f"{self.text} [{' ,'.join(self.tags)}]"
+        return self.text
+
+def _parse_note_args(tokens: list):
+    """
+    Допоміжна функція для розбору аргументів нотатки.
+    """
+    if not tokens:
+        return "", []
+
+    marker_index = None
+    for i, t in enumerate(tokens):
+        if isinstance(t, str) and t.lower().startswith('tags:'):
+            marker_index = i
+            break
+
+    if marker_index is None:
+        return " ".join(tokens).strip(), []
+
+    text = " ".join(tokens[:marker_index]).strip()
+    rest = tokens[marker_index:]
+
+    tags = []
+    if rest:
+        first = rest[0]
+        if first.lower().startswith('tags:') and first != 'tags:':
+            tags_part = first.split(':', 1)[1]
+            if tags_part:
+                tags.extend([t.strip() for t in tags_part.split(',') if t.strip()])
+            tags.extend(rest[1:])
+        else:
+            tags.extend(rest[1:])
+
+    tags = [t for t in tags if t]
+    return text, tags
+
+def add_note(args: list, book) -> str:
+    """
+    Додає нову нотатку до існуючого контакту.
+    Синтаксис: add-note <Ім'я> <Текст нотатки ...> [tags: ...]
+    """
+    if len(args) < 2:
+        return "Помилка: Потрібно вказати ім'я та текст нотатки."
+
+    contact_name = args[0]
+    if contact_name not in book.data:
+        return f"Помилка: Контакт '{contact_name}' не знайдено."
+
+    text, tags = _parse_note_args(args[1:])
+    if not text:
+        return f"Помилка: Не вказано текст нотатки для '{contact_name}'."
+
+    new_note = Note(text, tags)
+    contact_record = book.data[contact_name]
+
+    if not hasattr(contact_record, "notes"):
+        contact_record.notes = []
+    contact_record.notes.append(new_note)
+
+    return f"Нотатку успішно додано до контакту '{contact_name}'."
+
+def edit_note(args: list, book) -> str:
+    """
+    Редагує існуючу нотатку за індексом (1-базованим).
+    Синтаксис: edit-note <Ім'я> <Індекс> <Новий текст ...> [tags: ...]
+    """
+    if len(args) < 3:
+        return "Помилка: Недостатньо аргументів."
+
+    contact_name, note_index_str = args[0], args[1]
+
+    if contact_name not in book.data:
+        return f"Помилка: Контакт '{contact_name}' не знайдено."
+
+    contact_record = book.data[contact_name]
+    if not getattr(contact_record, "notes", None):
+        return f"Помилка: У контакту '{contact_name}' немає нотаток."
+
+    try:
+        index = int(note_index_str) - 1
+        if not (0 <= index < len(contact_record.notes)):
+            raise IndexError
+    except ValueError:
+        return f"Помилка: Індекс '{note_index_str}' має бути числом."
+    except IndexError:
+        return f"Помилка: Нотатку з індексом {note_index_str} не знайдено."
+
+    text, tags = _parse_note_args(args[2:])
+    if not text:
+        return "Помилка: Не вказано новий текст нотатки."
+
+    note = contact_record.notes[index]
+    note.text = text
+    note.tags = tags
+
+    return f"Нотатку {note_index_str} для '{contact_name}' оновлено."
+
+def delete_note(args: list, book) -> str:
+    """
+    Видаляє нотатку за індексом.
+    Синтаксис: delete-note <Ім'я> <Індекс>
+    """
+    if len(args) != 2:
+        return "Помилка: Синтаксис: delete-note <Ім'я> <Індекс>"
+
+    contact_name, note_index_str = args[0], args[1]
+
+    if contact_name not in book.data:
+        return f"Помилка: Контакт '{contact_name}' не знайдено."
+
+    contact_record = book.data[contact_name]
+    if not getattr(contact_record, "notes", None):
+        return f"Помилка: У контакту '{contact_name}' немає нотаток."
+
+    try:
+        index = int(note_index_str) - 1
+        if not (0 <= index < len(contact_record.notes)):
+            raise IndexError
+    except ValueError:
+        return f"Помилка: Індекс '{note_index_str}' має бути числом."
+    except IndexError:
+        return f"Помилка: Нотатку з індексом {note_index_str} не знайдено."
+
+    deleted_note = contact_record.notes.pop(index)
+    return f"Нотатку '{deleted_note.text[:20]}...' видалено з контакту '{contact_name}'."
+
+def search_notes(args: list, book) -> str:
+    """
+    Пошук нотаток за текстом або тегом по всіх контактах.
+    Синтаксис: search-notes <запит>
+    """
+    if not args:
+        return "Помилка: Введіть текст або тег для пошуку."
+
+    query = " ".join(args).lower()
+    matches = []
+
+    for contact_name, record in book.data.items():
+        for note in getattr(record, "notes", []):
+            if query in note.text.lower() or any(query in tag.lower() for tag in note.tags):
+                matches.append((contact_name, note))
+
+    if not matches:
+        return f"Нотаток за запитом '{query}' не знайдено."
+
+    result = [f"Знайдено нотаток за запитом '{query}': {len(matches)}"]
+    for name, note in matches:
+        result.append(f"\nКонтакт: {name}\nНотатка: {str(note)}")
+
+    return "\n".join(result)
+
+def sort_notes_by_tag(args: list, book) -> str:
+    """
+    Виводить всі нотатки, згруповані за тегами.
+    Синтаксис: notes-by-tag
+    """
+    if args:
+        return "Помилка: Команда не приймає аргументів."
+
+    tags_map = {}
+    for name, record in book.data.items():
+        for note in getattr(record, "notes", []):
+            if not note.tags:
+                tags_map.setdefault("#Без тегу", []).append((name, note.text))
+            else:
+                for tag in note.tags:
+                    tags_map.setdefault(tag.lower(), []).append((name, note.text))
+
+    if not tags_map:
+        return "У книзі контактів немає жодної нотатки."
+
+    result = ["Нотатки, згруповані за тегами:"]
+    for tag in sorted(tags_map):
+        result.append(f"\n--- Тег: {tag.upper()} ---")
+        for name, text in tags_map[tag]:
+            result.append(f"  - [{name}] {text}")
+
+    return "\n".join(result)
