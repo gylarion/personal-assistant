@@ -2,6 +2,7 @@ from collections import UserDict
 from datetime import datetime, timedelta
 import pickle
 import os
+import re
 
 """
 Модуль архітектора (Людина 1) + логіка Людини 2 (додавання контактів, дні народження) + Людина 3 (пошук і виведення).
@@ -57,6 +58,15 @@ class Contact:
             raise ValueError("Невірний формат дати. Використовуйте ДД.ММ.РРРР")
 
     def set_email(self, email: str):
+        """
+        Встановлює email після базової перевірки формату.
+        Args:
+            email (str): Email адреса.
+        Raises:
+            ValueError: Якщо формат email некоректний.
+        """
+        if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$", email):
+            raise ValueError("Невірний формат email.")
         self.email = email
 
     def set_address(self, address: str):
