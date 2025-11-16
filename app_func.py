@@ -172,8 +172,8 @@ def input_error(func):
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ValueError as e:
-            return f"Помилка: {str(e)}"
+        except ValueError:
+            return f"Помилка: недопустимий формат або ви вказали не всі значення"
         except KeyError:
             return "Помилка: Контакт не знайдено."
         except IndexError:
@@ -192,10 +192,10 @@ def add_contact(*args):
 
     if len(contact_args) < 2:
         return ("❌ Помилка: Потрібно вказати ім'я та телефон.\n"
-                "💡 Формат: додати [ім'я] [телефон]\n"
+                "💡 Формат: додати [ім'я] [телефон] [день народження]\n"
                 "💡 Наприклад: додати Іван 0671234567")
 
-    name, phone, *_ = contact_args
+    name, phone, birthday_str, *_ = contact_args
     record = book.find(name)
     message = "Контакт оновлено."
 
@@ -203,6 +203,7 @@ def add_contact(*args):
         try:
             record = Contact(name)
             record.add_phone(phone)
+            record.add_birthday(birthday_str)
             message = "Контакт додано."
         except ValueError as e:
             return f"❌ Помилка створення контакту: {str(e)}"
