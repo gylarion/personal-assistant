@@ -111,13 +111,14 @@ class AddressBook(UserDict):
         """
         return self.get_contact(name)
 
-    def get_upcoming_birthdays(self):
+    def get_upcoming_birthdays(self, days: int = 7):
         """
-        Повертає список словників з іменами контактів і датами привітань, якщо день народження у найближчі 7 днів.
+        Повертає список словників з іменами контактів і датами привітань,
+        якщо день народження у найближчі `days` днів.
         Переносить ДН з вихідних на понеділок.
         """
         today = datetime.today().date()
-        next_week = today + timedelta(days=7)
+        end_date = today + timedelta(days=days)
         result = []
 
         for contact in self.data.values():
@@ -132,7 +133,7 @@ class AddressBook(UserDict):
                 elif bday.weekday() == 6:  # Sunday
                     congratulation_date = bday + timedelta(days=1)
 
-                if today <= congratulation_date <= next_week:
+                if today <= congratulation_date <= end_date:
                     result.append({
                         "name": contact.name,
                         "congratulation_date": congratulation_date.strftime("%Y.%m.%d")
@@ -220,18 +221,35 @@ def add_contact(*args):
 def get_upcoming_birthdays(*args):
     """
     Виводить список користувачів, яких потрібно привітати з днем народження
-    у найближчі 7 днів. Переносить ДН з вихідних на понеділок.
+    у найближчі N днів (за замовчуванням 7).
+    
+    Виклик:
+        get_upcoming_birthdays(book)              -> 7 днів
+        get_upcoming_birthdays(N, book)           -> N днів
+        
+    Команда:
+        birthdays
+        birthdays 30
     """
     if not args:
         return "❌ Помилка: AddressBook не передано."
 
-    *_, book = args
-    upcoming = book.get_upcoming_birthdays()
+    *cmd_args, book = args
+    days = 7             # значення за замовчуванням
+    if cmd_args:
+        try:
+            days = int(cmd_args[0])
+            if days <= 0:
+                return "Кількість днів має бути додатним числом."
+        except ValueError:
+            return "Кількість днів має бути числом, наприклад: birthdays 30"
+
+    upcoming = book.get_upcoming_birthdays(days=days)
 
     if not upcoming:
-        return "Немає днів народження на наступному тижні."
+        return f"Немає днів народження на наступні {days} днів."
 
-    result = ["Найближчі дні народження:"]
+    result = [f"Найближчі дні народження на {days} днів:"]
     for birthday_info in upcoming:
         name = birthday_info.get('name', 'Невідомо')
         date = birthday_info.get('congratulation_date', 'Невідомо')
@@ -272,26 +290,43 @@ def format_contact(record) -> str:
 
 def Contactss(args, book) -> str:
     """
-    Пошук контактів за ім'ям або номером телефону.
+    Пошук контактів за різними критеріями:
+    - ім'я
+    - номер телефону
+    - email
+    - адреса
+    - текст нотаток
+    - теги нотаток
+    
     Повертає відформатований список або повідомлення, якщо нічого не знайдено.
     """
     if not args:
-        return "Введіть, будь ласка, текст для пошуку (ім'я або частину номера)."
+        return "Введіть, будь ласка, текст для пошуку (ім'я, телефон, email, адресу або тег)."
     query = " ".join(args).strip().lower()
     if not query:
         return "Порожній запит. Введіть ім'я або частину номера."
     matches = []
     for record in book.data.values():
-        name_str = getattr(record.name, "value", str(record.name))
-        if query in name_str.lower():
-            matches.append(record)
-            continue
-        phones = getattr(record, "phones", [])
-        for p in phones:
-            phone_value = getattr(p, "value", str(p))
-            if query in phone_value:
-                matches.append(record)
+        name_val = str(getattr(record, "name", "") or "").lower()
+        phone_val = str(getattr(record, "phone", "") or "").lower()
+        email_val = str(getattr(record, "email", "") or "").lower()
+        addr_val = str(getattr(record, "address", "") or "").lower()
+        
+        field_match = any(       # чи є збіг по полях контакту
+            query in field
+            for field in (name_val, phone_val, email_val, addr_val)
+        )
+
+        note_match = False       # перевірка нотаток: текст + теги
+        for note in getattr(record, "notes", []):
+            text_match = query in note.text.lower()
+            tag_match = any(query in tag.lower() for tag in note.tags)
+            if text_match or tag_match:
+                note_match = True
                 break
+
+        if field_match or note_match:
+            matches.append(record)
     if not matches:
         return f"Нічого не знайдено за запитом: '{query}'."
     chunks = [format_contact(rec) for rec in matches]
