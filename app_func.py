@@ -262,26 +262,43 @@ def format_contact(record) -> str:
 
 def Contactss(args, book) -> str:
     """
-    Пошук контактів за ім'ям або номером телефону.
+    Пошук контактів за різними критеріями:
+    - ім'я
+    - номер телефону
+    - email
+    - адреса
+    - текст нотаток
+    - теги нотаток
+    
     Повертає відформатований список або повідомлення, якщо нічого не знайдено.
     """
     if not args:
-        return "Введіть, будь ласка, текст для пошуку (ім'я або частину номера)."
+        return "Введіть, будь ласка, текст для пошуку (ім'я, телефон, email, адресу або тег)."
     query = " ".join(args).strip().lower()
     if not query:
         return "Порожній запит. Введіть ім'я або частину номера."
     matches = []
     for record in book.data.values():
-        name_str = getattr(record.name, "value", str(record.name))
-        if query in name_str.lower():
-            matches.append(record)
-            continue
-        phones = getattr(record, "phones", [])
-        for p in phones:
-            phone_value = getattr(p, "value", str(p))
-            if query in phone_value:
-                matches.append(record)
+        name_val = str(getattr(record, "name", "") or "").lower()
+        phone_val = str(getattr(record, "phone", "") or "").lower()
+        email_val = str(getattr(record, "email", "") or "").lower()
+        addr_val = str(getattr(record, "address", "") or "").lower()
+        
+        field_match = any(       # чи є збіг по полях контакту
+            query in field
+            for field in (name_val, phone_val, email_val, addr_val)
+        )
+
+        note_match = False       # перевірка нотаток: текст + теги
+        for note in getattr(record, "notes", []):
+            text_match = query in note.text.lower()
+            tag_match = any(query in tag.lower() for tag in note.tags)
+            if text_match or tag_match:
+                note_match = True
                 break
+
+        if field_match or note_match:
+            matches.append(record)
     if not matches:
         return f"Нічого не знайдено за запитом: '{query}'."
     chunks = [format_contact(rec) for rec in matches]
