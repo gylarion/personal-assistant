@@ -1,6 +1,7 @@
 import sys
 from colorama import init, Fore, Style
 import app_func
+from command_suggestion import COMMAND_PATTERNS, suggest_commands
 
 # Ініціалізуємо colorama
 init(autoreset=True)
@@ -98,7 +99,12 @@ def main():
                 print(app_func.sort_notes_by_tag(args, book))
 
             else:
-                print(Fore.RED + f"❌ Невідома команда: {command}. Введіть 'help' для списку.")
+                suggestions = suggest_commands(command, args)
+                print(Fore.RED + f"❌ Невідома команда: {command}.")
+                if suggestions:
+                    readable = ", ".join(COMMAND_PATTERNS[s] for s in suggestions[:3])
+                    print(Fore.YELLOW + f"💡 Можливо, ви мали на увазі: {readable}")
+                print(Fore.YELLOW + "ℹ️ Введіть 'help' для повного списку команд.")
 
         except Exception as e:
             print(Fore.RED + f"⚠️ Виникла помилка: {str(e)}")
